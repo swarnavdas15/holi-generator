@@ -1,0 +1,38 @@
+body{
+background:#0b0b0b;
+color:white;
+font-family:Arial, Helvetica, sans-serif;
+}
+
+.container{
+max-width:1200px;
+margin:auto;
+padding:20px;
+}
+
+.btn-red{
+background:#e50914;
+color:white;
+border:none;
+padding:12px 20px;
+border-radius:6px;
+cursor:pointer;
+font-weight:bold;
+}
+
+.btn-red:hover{
+background:#ff1e2d;
+}
+
+.card{
+background:#141414;
+border:1px solid #222;
+padding:20px;
+border-radius:10px;
+}
+
+.hero{
+text-align:center;
+padding:120px 20px;
+background: radial-gradient(circle,#1a0003,#000000);
+}
