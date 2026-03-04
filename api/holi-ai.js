@@ -96,11 +96,13 @@ async function requestHuggingFaceOnce(url, apiKey, formData, timeoutMs) {
             body: formData,
             signal: controller.signal
         })
+        console.log("HF response status:", response.status)
+        console.log("HF response headers:", response.headers.get("content-type"))
 
         if (!response.ok) {
-            const errorText = await response.text()
-            console.error("HuggingFace error:", errorText)
-            throw new Error(`HF API failed (${response.status})`)
+            const errorBody = await response.text()
+            console.error("HF error body:", errorBody)
+            throw new Error(`HF API failed (${response.status}): ${errorBody}`)
         }
 
         return response
@@ -120,7 +122,7 @@ async function requestHuggingFaceWithRetry(url, apiKey, formData, timeoutMs = 15
 
 export default async function handler(req, res) {
     try {
-        console.log("AI request received")
+        console.log("AI endpoint triggered")
 
         if (req.method !== "POST") {
             res.setHeader("Allow", "POST")
@@ -153,11 +155,16 @@ export default async function handler(req, res) {
         }
 
         console.log("Image buffer size:", imagePart.fileBuffer.length)
+        console.log("Mask buffer size:", maskPart.fileBuffer.length)
 
         const prompt =
             "realistic photo of the same person from the uploaded image celebrating Holi in Vrindavan, preserving exact facial identity and natural skin tone, Banke Bihari temple style architecture in the background, vibrant colorful gulal powder clouds in the air, festive crowd and marigold flower petals around, person actively participating in Holi with authentic color on face and clothes, high detail festival atmosphere, cinematic realistic photography, vibrant festival lighting"
         const negativePrompt =
             "different person, changed identity, face distortion, deformed face, extra eyes, extra nose, duplicate face, plastic skin, cartoon style, painting style, blurry face, low detail, unrealistic skin tone"
+        const hfUrl =
+            "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-2-inpainting"
+        console.log("HF endpoint:", hfUrl)
+        console.log("Prompt:", prompt)
 
         const hfFormData = new FormData()
         hfFormData.append(
@@ -177,13 +184,14 @@ export default async function handler(req, res) {
         hfFormData.append("guidance_scale", "7")
 
         const response = await requestHuggingFaceWithRetry(
-            "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-inpainting",
+            hfUrl,
             apiKey,
             hfFormData,
             15000
         )
 
         const imageBuffer = await response.arrayBuffer()
+        console.log("HF image size:", imageBuffer?.byteLength || 0)
         if (!imageBuffer || imageBuffer.byteLength === 0) {
             return res.status(502).json({ error: "Invalid image response from HuggingFace" })
         }
@@ -192,6 +200,6 @@ export default async function handler(req, res) {
         return res.send(Buffer.from(imageBuffer))
     } catch (err) {
         console.error("AI processing failed:", err)
-        return res.status(500).json({ error: "AI processing failed" })
+        return res.status(500).json({ error: "AI processing failed", details: err?.message || String(err) })
     }
 }

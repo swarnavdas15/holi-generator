@@ -243,7 +243,6 @@ export default function Editor() {
             await generateHoliAI(file)
         } catch (error) {
             console.error("AI processing failed", error)
-            setImage(previewUrl)
         } finally {
             setLoading(false)
         }
