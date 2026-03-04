@@ -162,7 +162,7 @@ export default async function handler(req, res) {
         const negativePrompt =
             "different person, changed identity, face distortion, deformed face, extra eyes, extra nose, duplicate face, plastic skin, cartoon style, painting style, blurry face, low detail, unrealistic skin tone"
         const hfUrl =
-            "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-2-inpainting"
+            "https://router.huggingface.co/hf-inference/models/runwayml/stable-diffusion-inpainting"
         console.log("HF endpoint:", hfUrl)
         console.log("Prompt:", prompt)
 
