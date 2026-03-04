@@ -1,22 +1,18 @@
 import { useEffect, useRef, useState } from "react"
 import pichkariLeft from "../assets/pichkari_left.png"
 import thali from "../assets/thali.png"
-import gulal1 from "../assets/gulal1.png"
-import gulal2 from "../assets/gulal2.png"
-import gulal3 from "../assets/gulal3.png"
-import gulal4 from "../assets/gulal4.png"
 import { FaWhatsapp, FaFacebook, FaInstagram, FaSnapchat } from "react-icons/fa"
+import GulalParticleEngine from "../engine/GulalParticleEngine"
 
 export default function CanvasEditor({ image }) {
     const canvasRef = useRef(null)
     const overlayCanvasRef = useRef(null)
     const celebrationCanvasRef = useRef(null)
     const imageRef = useRef(null)
-    const textureRef = useRef([])
+    const engineRef = useRef(null)
     const audioRef = useRef(null)
-    const frameRef = useRef(null)
+    const phaseTimersRef = useRef([])
     const celebrationFrameRef = useRef(null)
-    const retryTimeoutRef = useRef(null)
     const thaliRiseTimeoutRef = useRef(null)
     const celebrationResizeHandlerRef = useRef(null)
     const popupTimeoutRef = useRef(null)
@@ -47,26 +43,6 @@ Created with PURO TECH Holi Generator
 #HoliHai #HappyHoli #PUROTECH #india #festivalofcolors`
 
     useEffect(() => {
-        const sources = [gulal1, gulal2, gulal3, gulal4]
-        const loaded = []
-        let remaining = sources.length
-
-        sources.forEach((src) => {
-            const texture = new Image()
-            texture.onload = () => {
-                loaded.push(texture)
-                remaining -= 1
-                if (remaining === 0) textureRef.current = loaded
-            }
-            texture.onerror = () => {
-                remaining -= 1
-                if (remaining === 0) textureRef.current = loaded
-            }
-            texture.src = src
-        })
-    }, [])
-
-    useEffect(() => {
         if (!image) return
 
         const baseCanvas = canvasRef.current
@@ -94,9 +70,9 @@ Created with PURO TECH Holi Generator
         }
 
         return () => {
-            if (frameRef.current) {
-                cancelAnimationFrame(frameRef.current)
-                frameRef.current = null
+            if (engineRef.current) {
+                engineRef.current.stop()
+                engineRef.current = null
             }
             if (celebrationFrameRef.current) {
                 cancelAnimationFrame(celebrationFrameRef.current)
@@ -107,13 +83,15 @@ Created with PURO TECH Holi Generator
                 audioRef.current.currentTime = 0
                 audioRef.current = null
             }
-            if (retryTimeoutRef.current) {
-                clearTimeout(retryTimeoutRef.current)
-                retryTimeoutRef.current = null
-            }
             if (thaliRiseTimeoutRef.current) {
                 clearTimeout(thaliRiseTimeoutRef.current)
                 thaliRiseTimeoutRef.current = null
+            }
+            if (phaseTimersRef.current.length > 0) {
+                for (let i = 0; i < phaseTimersRef.current.length; i++) {
+                    clearTimeout(phaseTimersRef.current[i])
+                }
+                phaseTimersRef.current = []
             }
             if (celebrationResizeHandlerRef.current) {
                 window.removeEventListener("resize", celebrationResizeHandlerRef.current)
@@ -158,16 +136,6 @@ Created with PURO TECH Holi Generator
         }))
         setHoliMessage(message)
         setHoliMessageChars(chars)
-    }
-
-    function tintColor(hex) {
-        const clean = hex.replace("#", "")
-        const r = parseInt(clean.slice(0, 2), 16)
-        const g = parseInt(clean.slice(2, 4), 16)
-        const b = parseInt(clean.slice(4, 6), 16)
-        const shift = Math.floor(Math.random() * 31) - 15
-        const clamp = (v) => Math.max(0, Math.min(255, v + shift))
-        return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`
     }
 
     function exportCanvasImage() {
@@ -453,24 +421,21 @@ Created with PURO TECH Holi Generator
         celebrationFrameRef.current = requestAnimationFrame(animateCelebration)
     }
 
-    function startHoliAnimation(retryCount = 0) {
+    function startHoliAnimation() {
         const baseCanvas = canvasRef.current
         const overlayCanvas = overlayCanvasRef.current
         const baseCtx = baseCanvas?.getContext("2d")
-        const overlayCtx = overlayCanvas?.getContext("2d")
         const bgImage = imageRef.current
-        if (!baseCanvas || !overlayCanvas || !baseCtx || !overlayCtx || !bgImage) return
-        const textures = textureRef.current.filter((item) => item.complete && item.naturalWidth > 0)
-        if (textures.length === 0) {
-            if (retryCount >= 20) return
-            retryTimeoutRef.current = setTimeout(() => startHoliAnimation(retryCount + 1), 80)
-            return
+        if (!baseCanvas || !overlayCanvas || !baseCtx || !bgImage) return
+        if (engineRef.current) {
+            engineRef.current.stop()
+            engineRef.current = null
         }
 
-        if (frameRef.current) {
-            cancelAnimationFrame(frameRef.current)
-            frameRef.current = null
+        for (let i = 0; i < phaseTimersRef.current.length; i++) {
+            clearTimeout(phaseTimersRef.current[i])
         }
+        phaseTimersRef.current = []
 
         shareShownRef.current = false
         popupShownRef.current = false
@@ -489,164 +454,54 @@ Created with PURO TECH Holi Generator
         }
         thaliRiseTimeoutRef.current = setTimeout(() => setThaliRaised(true), 40)
 
-        const colors = ["#ff2e63", "#ffd400", "#00ff9c", "#00c8ff", "#ff7af6"]
-        const sprayDurationMs = 800
-        const celebrationDelayMs = 2600
-        const splashEvents = []
-        let startTime = 0
-        let celebrationTriggered = false
+        const pichkariSources = [
+            { x: 120, y: 180, angle: 0.04 },
+            { x: 480, y: 180, angle: Math.PI - 0.04 }
+        ]
 
-        function pickColor() {
-            return colors[Math.floor(Math.random() * colors.length)]
-        }
+        baseCtx.clearRect(0, 0, baseCanvas.width, baseCanvas.height)
+        baseCtx.drawImage(bgImage, 0, 0, baseCanvas.width, baseCanvas.height)
 
-        function randomShade(baseColor) {
-            return tintColor(baseColor)
-        }
+        const engine = new GulalParticleEngine({
+            ctx: baseCtx,
+            width: baseCanvas.width,
+            height: baseCanvas.height,
+            imageRect: { x: 0, y: 0, width: baseCanvas.width, height: baseCanvas.height },
+            pichkariSources
+        })
+        engineRef.current = engine
+        engine.start()
 
-        function randomTexture() {
-            return textures[Math.floor(Math.random() * textures.length)]
-        }
+        const sprayTimer = setTimeout(() => {
+            setIsSpraying(false)
+        }, 800)
+        phaseTimersRef.current.push(sprayTimer)
 
-        function randomInRange(min, max) {
-            return min + Math.random() * (max - min)
-        }
-
-        function buildSplashEvent(layer) {
-            const px = Math.random() * baseCanvas.width
-            const py = Math.random() * baseCanvas.height * 0.9
-            const yRatio = py / baseCanvas.height
-            const size = randomInRange(layer.minSize, layer.maxSize)
-            const alpha = Math.max(0.08, Math.min(0.86, (0.2 + yRatio * 0.5) * (0.9 + Math.random() * 0.2)))
-
-            return {
-                texture: randomTexture(),
-                x: Math.max(-220, Math.min(baseCanvas.width + 220, px)),
-                y: Math.max(-220, Math.min(baseCanvas.height + 220, py)),
-                size,
-                rotation: Math.random() * Math.PI * 2,
-                color: randomShade(pickColor()),
-                opacity: alpha,
-                yRatio,
-                at: randomInRange(layer.startMs, layer.endMs),
-                drawn: false
+        const celebrationTimer = setTimeout(() => {
+            setShowPichkari(false)
+            setShowThali(false)
+            setRandomHoliMessage()
+            setShowMessage(true)
+            if (!shareShownRef.current) {
+                shareShownRef.current = true
+                setShowShare(true)
             }
-        }
+        }, 2600)
+        phaseTimersRef.current.push(celebrationTimer)
 
-        function makeTintedTexture(texture, size, color) {
-            const tintCanvas = document.createElement("canvas")
-            tintCanvas.width = Math.ceil(size)
-            tintCanvas.height = Math.ceil(size)
-            const tintCtx = tintCanvas.getContext("2d")
-            if (!tintCtx) return null
-
-            tintCtx.drawImage(texture, 0, 0, tintCanvas.width, tintCanvas.height)
-            tintCtx.globalCompositeOperation = "source-atop"
-            tintCtx.fillStyle = color
-            tintCtx.globalAlpha = 0.9
-            tintCtx.fillRect(0, 0, tintCanvas.width, tintCanvas.height)
-            tintCtx.globalCompositeOperation = "source-over"
-            tintCtx.globalAlpha = 1
-            return tintCanvas
-        }
-
-        function drawSplashTexture(event) {
-            const tinted = makeTintedTexture(event.texture, event.size, event.color)
-            if (!tinted) return
-
-            baseCtx.save()
-            baseCtx.globalCompositeOperation = "overlay"
-            baseCtx.globalAlpha = event.opacity
-            baseCtx.shadowColor = event.color
-            baseCtx.shadowBlur = 4 + event.yRatio * 10
-            baseCtx.translate(event.x, event.y)
-            baseCtx.rotate(event.rotation)
-            baseCtx.drawImage(
-                tinted,
-                -event.size / 2,
-                -event.size / 2,
-                event.size,
-                event.size
-            )
-            baseCtx.restore()
-        }
-
-        function buildSplashEvents() {
-            const splashLayer = {
-                minSize: 20,
-                maxSize: 260,
-                startMs: 100,
-                endMs: 1600
+        const engineStopTimer = setTimeout(() => {
+            if (engineRef.current) {
+                engineRef.current.stop()
+                engineRef.current = null
             }
-
-            const splashCount = Math.floor(Math.random() * 3) + 10
-            for (let i = 0; i < splashCount; i++) {
-                const layeredEvent = { ...splashLayer }
-                if (Math.random() < 0.35) {
-                    layeredEvent.minSize = 20
-                    layeredEvent.maxSize = 60
-                } else if (Math.random() < 0.55) {
-                    layeredEvent.minSize = 80
-                    layeredEvent.maxSize = 220
-                } else {
-                    layeredEvent.minSize = 120
-                    layeredEvent.maxSize = 340
-                }
-                splashEvents.push(buildSplashEvent(layeredEvent))
+            if (!popupShownRef.current) {
+                popupShownRef.current = true
+                popupTimeoutRef.current = setTimeout(() => {
+                    setShowPopup(true)
+                }, 1000)
             }
-        }
-
-        function animate(now) {
-            if (!startTime) {
-                startTime = now
-            }
-
-            const elapsedMs = now - startTime
-            let pending = 0
-
-            for (let i = 0; i < splashEvents.length; i++) {
-                const event = splashEvents[i]
-                if (!event.drawn) {
-                    if (event.at <= elapsedMs) {
-                        drawSplashTexture(event)
-                        event.drawn = true
-                    } else {
-                        pending += 1
-                    }
-                }
-            }
-
-            setIsSpraying(elapsedMs <= sprayDurationMs)
-
-            if (elapsedMs >= celebrationDelayMs && !celebrationTriggered) {
-                celebrationTriggered = true
-                setShowPichkari(false)
-                setShowThali(false)
-                setRandomHoliMessage()
-                setShowMessage(true)
-                if (!shareShownRef.current) {
-                    shareShownRef.current = true
-                    setShowShare(true)
-                }
-            }
-
-            if (pending > 0 || !celebrationTriggered) {
-                frameRef.current = requestAnimationFrame(animate)
-            } else {
-                setIsSpraying(false)
-                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
-                frameRef.current = null
-                if (!popupShownRef.current) {
-                    popupShownRef.current = true
-                    popupTimeoutRef.current = setTimeout(() => {
-                        setShowPopup(true)
-                    }, 1000)
-                }
-            }
-        }
-
-        buildSplashEvents()
-        frameRef.current = requestAnimationFrame(animate)
+        }, 5200)
+        phaseTimersRef.current.push(engineStopTimer)
     }
 
     return (
