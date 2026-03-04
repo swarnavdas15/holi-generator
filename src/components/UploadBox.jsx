@@ -1,14 +1,12 @@
 import { useDropzone } from "react-dropzone"
 
-export default function UploadBox({ setImage }) {
+export default function UploadBox({ onUpload }) {
     const { getRootProps, getInputProps } = useDropzone({
         accept: { "image/*": [] },
         onDrop: (files) => {
-            const reader = new FileReader()
-            reader.onload = () => {
-                setImage(reader.result)
-            }
-            reader.readAsDataURL(files[0])
+            const file = files?.[0]
+            if (!file) return
+            onUpload(file)
         }
     })
 

@@ -765,7 +765,7 @@ Created with PURO TECH Holi Generator
                             <button
                                 type="button"
                                 onClick={() => {
-                                    const phone = '8889287261'
+                                    const phone = '+918889287261'
                                     const message = encodeURIComponent(
                                         'Hi PURO TECH! I saw your Holi generator project and would like to discuss building something similar.'
                                     )
